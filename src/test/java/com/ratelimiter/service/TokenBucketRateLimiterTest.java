@@ -64,20 +64,21 @@ class TokenBucketRateLimiterTest extends AbstractRedisIntegrationTest {
     @Test
     void neverExceedsCapacityEvenAfterLongIdlePeriod() throws InterruptedException {
         String clientId = newClientId();
-        RateLimitRule rule = RateLimitRule.defaultTokenBucket(clientId, 3, 100.0);
+        int capacity = 3;
+        RateLimitRule rule = RateLimitRule.defaultTokenBucket(clientId, capacity, 100.0);
 
-        assertThat(tokenBucket.tryConsume(clientId, rule).allowed()).isTrue();
-        Thread.sleep(200); // plenty of time to "overflow" past capacity if refill wasn't capped
+        // Touch the bucket once so it has a real "last refill" timestamp to compute from.
+        tokenBucket.tryConsume(clientId, rule);
 
-        int allowedCount = 0;
-        for (int i = 0; i < 10; i++) {
-            if (tokenBucket.tryConsume(clientId, rule).allowed()) {
-                allowedCount++;
-            }
-        }
-        // Capacity is 3 total; one was already consumed above, so at most 2 more fit,
-        // regardless of how much idle time passed.
-        assertThat(allowedCount).isLessThanOrEqualTo(2);
+        // Nominal refill over this idle period (100 tokens/sec * 0.3s = 30) massively
+        // exceeds capacity; the bucket must cap at `capacity`, not accumulate 30 tokens.
+        Thread.sleep(300);
+
+        // The very next call's "remaining" tells us the bucket's post-refill level
+        // directly, without depending on how fast subsequent round trips happen to be.
+        RateLimitResult result = tokenBucket.tryConsume(clientId, rule);
+        assertThat(result.allowed()).isTrue();
+        assertThat(result.remaining()).isEqualTo(capacity - 1); // capped at capacity, not 31
     }
 
     @Test
