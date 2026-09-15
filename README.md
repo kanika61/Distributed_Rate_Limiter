@@ -21,7 +21,6 @@ Two interchangeable algorithms are implemented behind a Strategy interface:
 - [Running locally](#running-locally)
 - [Proving distributed correctness (load test)](#proving-distributed-correctness-load-test)
 - [Tests](#tests)
-- [CI/CD pipeline](#cicd-pipeline)
 - [What I'd do differently at real scale](#what-id-do-differently-at-real-scale)
 - [Project layout](#project-layout)
 
@@ -318,44 +317,7 @@ mvn test
   context on a random port with a real Redis and drives it over real HTTP, including the
   admin API creating a rule that overrides the default.
 
-Testcontainers needs a working Docker daemon on the machine running the tests (this is
-provided automatically by GitHub Actions' `ubuntu-latest` runners — see below).
-
----
-
-## CI/CD pipeline
-
-Defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml), triggered on every push
-and pull request to `main`.
-
-### Stage 1 — Build
-`actions/setup-java` installs Temurin JDK 17 (with Maven dependency caching), then
-`mvn -B clean verify` compiles both main and test sources.
-
-### Stage 2 — Test
-The same `mvn verify` invocation runs the full test suite: fast Mockito-based unit tests
-and the Testcontainers-backed integration tests, which transparently spin up a real Redis
-container via the Docker daemon already present on the runner. A `redis:7-alpine` **service
-container** is also declared on the job (mapped to `localhost:6379`) so anything relying on
-a plain, already-running Redis at a fixed address is satisfied too. Surefire XML reports
-are uploaded as a build artifact and summarized as a check via `dorny/test-reporter`, so
-pass/fail is visible directly on the PR/commit without opening logs.
-
-### Stage 3 — Containerize
-A second job, `docker-build-push`, depends on `build-and-test` succeeding first (`needs:`).
-It builds the multi-stage `Dockerfile` (Maven build stage → slim `eclipse-temurin:17-jre-alpine`
-runtime stage) using `docker/build-push-action`.
-
-### Stage 4 — Publish
-Still inside `docker-build-push`, and **gated on `github.ref == 'refs/heads/main'`** (so
-PRs build the image to verify it compiles, but never push it), the image is tagged both
-`latest` and with the short commit SHA, then pushed to **GitHub Container Registry**
-(`ghcr.io/<owner>/<repo>`) using the repo's own `GITHUB_TOKEN` — no extra secrets to
-configure.
-
-```
-push/PR ──► [Build: mvn compile] ──► [Test: mvn verify + Testcontainers] ──► (main only) [Containerize: docker build] ──► [Publish: push to GHCR]
-```
+Testcontainers needs a working Docker daemon on the machine running the tests.
 
 ---
 
@@ -433,5 +395,4 @@ src/test/java/com/ratelimiter/      # unit + Testcontainers integration tests
 loadtest/distributed_correctness_test.py
 docker-compose.yml                  # single instance, for local dev
 docker-compose.cluster.yml          # 3 instances + shared Redis, for the load test
-.github/workflows/ci.yml
 ```
