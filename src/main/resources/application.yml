@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: distributed-rate-limiter
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+ratelimiter:
+  # Header the filter inspects to identify the caller. Falls back to remote IP if absent.
+  client-header: X-API-Key
+  # Rules that don't come from the admin API / Redis yet fall back to this default.
+  default-rule:
+    algorithm: TOKEN_BUCKET
+    capacity: 20
+    refill-rate-per-second: 5
+    limit: 20
+    window-seconds: 10
+  # Paths that bypass the rate limit filter entirely.
+  excluded-paths:
+    - /actuator/**
+    - /admin/**
+
+logging:
+  level:
+    com.ratelimiter: INFO

@@ -1,0 +1,8 @@
+ratelimiter:
+  client-header: X-API-Key
+  default-rule:
+    algorithm: TOKEN_BUCKET
+    capacity: 5
+    refill-rate-per-second: 1
+    limit: 5
+    window-seconds: 5

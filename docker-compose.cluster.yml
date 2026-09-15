@@ -1,0 +1,49 @@
+# Spins up 3 app instances sharing one Redis, for the distributed-correctness load test
+# (see loadtest/distributed_correctness_test.py and the README's "Load test" section).
+#
+# Usage:
+#   docker compose -f docker-compose.cluster.yml up --build
+#   python3 loadtest/distributed_correctness_test.py
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app1:
+    build: .
+    ports:
+      - "8081:8080"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  app2:
+    build: .
+    ports:
+      - "8082:8080"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  app3:
+    build: .
+    ports:
+      - "8083:8080"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
